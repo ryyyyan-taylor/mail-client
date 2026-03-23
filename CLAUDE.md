@@ -321,23 +321,21 @@ const rowVirtualizer = useVirtualizer({
 
 ## Email Body Rendering
 
-HTML emails render in a sandboxed iframe:
+HTML emails render inline via `dangerouslySetInnerHTML` after DOMPurify sanitization:
 
 ```tsx
-<iframe
-  srcDoc={sanitizedHtml}
-  sandbox="allow-popups allow-popups-to-escape-sandbox"
-  className="w-full min-h-96 border-0"
-  onLoad={(e) => {
-    // auto-resize to content height
-    const iframe = e.currentTarget
-    iframe.style.height = iframe.contentDocument?.body.scrollHeight + "px"
-  }}
+<div
+  className="email-body overflow-x-auto rounded bg-white p-4 text-black"
+  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html, {
+    ADD_ATTR: ["target"],
+    FORBID_TAGS: ["style", "script", "form", "input", "textarea", "select"],
+  }) }}
 />
 ```
 
-- Run body through DOMPurify before setting `srcDoc`
-- `allow-popups` so links open in new tab; no `allow-scripts` — JS in emails is blocked
+- DOMPurify strips scripts, styles, forms — safe for inline rendering
+- Scoped `.email-body` CSS rules in `globals.css` constrain images, tables, links
+- No iframe — avoids focus trap, scroll issues, and height sizing problems
 - Plain text emails: render in `<pre className="font-mono text-sm whitespace-pre-wrap">`
 - Email bodies are base64url encoded in Gmail API — decode with `lib/gmail/codec.ts`
 
@@ -369,50 +367,50 @@ Mutations should `invalidateQueries` on the relevant message/thread list after s
 - [x] Login page at `/login`
 
 ### Phase 2 — Gmail API Routes + Email List
-- [ ] All API routes in `/app/api/gmail/`
-- [ ] `useMessages` hook with TanStack Query
-- [ ] `EmailList` with TanStack Virtual
-- [ ] `EmailRow` component (sender, subject, snippet, date, labels, star indicator)
-- [ ] Infinite scroll via `pageToken`
+- [x] All API routes in `/app/api/gmail/`
+- [x] `useMessages` hook with TanStack Query
+- [x] `EmailList` with TanStack Virtual
+- [x] `EmailRow` component (sender, subject, snippet, date, labels, star indicator)
+- [x] Infinite scroll via `pageToken`
 
 ### Phase 3 — Keyboard Navigation (NORMAL)
-- [ ] Zustand stores (`mailStore`, `uiStore`)
-- [ ] `useKeybinds` hook with `tinykeys`
-- [ ] `j`/`k` cursor movement + visual highlight on rows
-- [ ] `Enter` to open thread, `Escape` back to list
-- [ ] `g *` prefix navigation between labels
+- [x] Zustand stores (`mailStore`, `uiStore`)
+- [x] `useKeybinds` hook with `tinykeys`
+- [x] `j`/`k` cursor movement + visual highlight on rows
+- [x] `Enter` to open thread, `Escape` back to list
+- [x] `g *` prefix navigation between labels
 
 ### Phase 4 — Thread Detail View
-- [ ] `useThread` hook
-- [ ] `EmailDetail` component — thread message list, expandable messages
-- [ ] HTML body rendering (iframe + DOMPurify)
-- [ ] Plain text fallback
-- [ ] `[` / `]` to navigate prev/next thread from detail view
+- [x] `useThread` hook
+- [x] `EmailDetail` component — thread message list, expandable messages
+- [x] HTML body rendering (iframe + DOMPurify)
+- [x] Plain text fallback
+- [x] `[` / `]` to navigate prev/next thread from detail view
 
 ### Phase 5 — Single-email Actions
-- [ ] `useBulkActions` hook (works for single too — pass `[id]`)
-- [ ] Archive (`e`), Trash (`#`), Spam (`!`), Star (`s`), Unread (`u`)
-- [ ] Optimistic updates + rollback
-- [ ] `Toast` component for feedback
+- [x] `useBulkActions` hook (works for single too — pass `[id]`)
+- [x] Archive (`e`), Trash (`#`), Spam (`!`), Star (`s`), Unread (`u`)
+- [x] Optimistic updates + rollback
+- [x] `Toast` component for feedback
 
 ### Phase 6 — Visual Mode + Bulk Actions
-- [ ] Mode state machine in `uiStore`
-- [ ] Visual mode keybinds + range selection logic
-- [ ] `SelectionBar` with bulk action buttons
-- [ ] Bulk archive/trash/spam/star/unread via `Promise.all`
+- [x] Mode state machine in `uiStore`
+- [x] Visual mode keybinds + range selection logic
+- [x] `SelectionBar` with bulk action buttons
+- [x] Bulk archive/trash/spam/star/unread via `Promise.all`
 
 ### Phase 7 — Labels + Search
-- [ ] Dynamic label list in `Sidebar` (from `/api/gmail/labels`)
-- [ ] `LabelPicker` popover for `l` keybind
-- [ ] Search bar in `Topbar` wired to `q=` Gmail param
-- [ ] Update `useMessages` to accept search query
+- [x] Dynamic label list in `Sidebar` (from `/api/gmail/labels`)
+- [x] `LabelPicker` popover for `l` keybind
+- [x] Search bar in `Topbar` wired to `q=` Gmail param
+- [x] Update `useMessages` to accept search query
 
 ### Phase 8 — Polish
-- [ ] `CommandPalette` component (triggered by `?`)
-- [ ] `KeybindHint` overlays visible on hover
-- [ ] Mute thread (`m`)
-- [ ] Unread count badges on sidebar labels
-- [ ] Loading/error states throughout
+- [x] `CommandPalette` component (triggered by `?`)
+- [x] ~~`KeybindHint` overlays visible on hover~~ (deferred — keybind hints already shown in sidebar shortcuts + command palette)
+- [x] Mute thread (`m`)
+- [x] Unread count badges on sidebar labels
+- [x] Loading/error states throughout
 
 ---
 
@@ -466,3 +464,160 @@ Free tier is sufficient for personal use. Gmail API quotas (1B units/day) will n
 - NextAuth v5 beta doesn't support `declare module "next-auth/jwt"` augmentation — using `as` casts for JWT token fields instead
 
 **Next up:** Phase 2 — Gmail API routes + email list
+
+### 2026-03-23 — Phase 2 Complete
+
+**What was done:**
+- Gmail API lib layer: `lib/gmail/client.ts` (authenticated client factory), `messages.ts`, `threads.ts`, `labels.ts`, `codec.ts`
+- All 6 API routes: `messages` (GET list), `messages/[id]` (GET/PATCH/DELETE), `threads` (GET list), `threads/[id]` (GET), `labels` (GET)
+- TanStack Query provider (`lib/providers.tsx`) wired into root layout
+- Query key conventions in `lib/queryKeys.ts`
+- `useMessages` hook with infinite query (thread-based, fetches preview message per thread)
+- `EmailList` component with TanStack Virtual (virtualized rows, scroll-based infinite loading)
+- `EmailRow` component (star, sender, subject, snippet, relative date, unread bold styling)
+- `[label]/page.tsx` converted from placeholder to live EmailList
+- Clean production build verified
+
+**Notes:**
+- Thread list endpoint fetches first message per thread for preview data (subject, sender, date) — trades N+1 API calls for richer list display
+- Installed `@tanstack/react-query` and `@tanstack/react-virtual`
+- `[label]/page.tsx` is now a client component (needs `useParams` for reactive label switching)
+
+**Next up:** Phase 3 — Keyboard navigation (NORMAL mode)
+
+### 2026-03-23 — Phase 3 Complete
+
+**What was done:**
+- Zustand stores: `mailStore` (cursor, selection, activeThread), `uiStore` (mode, command palette, label picker, search)
+- Mode type in `lib/keybinds/modes.ts`
+- Central keybind config in `lib/keybinds/bindings.ts`
+- `useKeybinds` hook: registers tinykeys listeners gated by mode, handles j/k/gg/G navigation, Enter to open thread, Escape to go back/exit modes, all g-prefix label navigation (g i, g s, g t, g d, g e, g !, g #)
+- `useVirtualCursor` hook: auto-scrolls virtualizer to keep cursor in view
+- `EmailRow` updated: cursor highlight with blue left border + bg tint (`isCursor` prop)
+- `EmailList` wired up: cursor state, keybinds, virtual cursor, cursor reset on label change
+- Installed `zustand` and `tinykeys`
+
+**Notes:**
+- tinykeys package.json exports don't resolve types properly — using `@ts-expect-error` on import
+- Cursor row styled with `bg-blue-950/60 border-l-2 border-l-blue-400` for clear visual distinction
+
+**Next up:** Phase 4 — Thread detail view
+
+### 2026-03-23 — Phase 4 Complete
+
+**What was done:**
+- `useThread` hook: TanStack Query fetch for single thread (full format, all messages)
+- `EmailDetail` component (forwardRef): sticky subject header, message count, expandable message cards (last message expanded by default), avatar initial, sender/date/to header, snippet preview when collapsed
+- Recursive MIME part walker in `getBody()` handles multipart messages
+- Plain text fallback: `<pre>` with `whitespace-pre-wrap`
+- Installed `dompurify`
+
+**UI pivot — split-pane reading view (replaces full-page thread route):**
+- `SplitPane` component: resizable drag handle (absolute-positioned pane content), 50% default split (20%-80% range), thick blue border on focused pane
+- `[label]/page.tsx` renders EmailList + EmailDetail side by side in SplitPane
+- `Enter` opens thread in right pane and focuses it (no route navigation)
+- `Escape` returns focus to list pane (keeps message open)
+- `j`/`k`/`gg`/`G` scroll the detail pane when it's focused, navigate the list when list is focused
+- `h`/`l` scroll detail pane horizontally when focused
+- `[`/`]` navigate prev/next thread (moved from useThreadNav into useKeybinds)
+- `focusedPane` state added to uiStore (`LIST` | `DETAIL`)
+- Focus border: `border-2 border-blue-500` on focused pane, `border-neutral-800` on unfocused
+- Mode indicator in sidebar bottom-left: `-- NORMAL --` / `-- VISUAL --` / `-- INSERT --` with color coding
+- Removed `useThreadNav` hook (merged into useKeybinds)
+- `[label]/[threadId]/page.tsx` now redirects to `[label]` (no longer used for viewing)
+
+**HTML rendering pivot — iframe → inline `dangerouslySetInnerHTML`:**
+- Iframe caused: focus trap (captured all keystrokes on click), scroll-wheel blocked, height wouldn't fill pane
+- Replaced with DOMPurify-sanitized inline HTML in a `<div>` with `.email-body` scoped CSS
+- FORBID_TAGS: style, script, form, input, textarea, select
+- Scoped CSS in `globals.css`: constrains images, tables, links within `.email-body`
+
+**Notes:**
+- `AppShell` main changed from `overflow-auto` to `overflow-hidden` — each pane manages its own scrolling
+- SplitPane pane content uses `absolute inset-0` (no `overflow-hidden` wrapper) so children can scroll freely
+
+**Next up:** Phase 5 — Single-email actions
+
+### 2026-03-23 — Phase 5 Complete
+
+**What was done:**
+- `useBulkActions` hook: archive, trash, spam, toggleStar, toggleUnread — all with optimistic cache updates + rollback on error
+- Thread-level Gmail API: `modifyThread`, `trashThread` in `lib/gmail/threads.ts`
+- API routes: PATCH and DELETE on `/api/gmail/threads/[id]` for thread-level modify/trash
+- Keybinds wired: `e` (archive), `#`/`Shift+3` (trash), `!`/`Shift+1` (spam), `s` (star), `u` (unread)
+- Toast system: `toastStore` (zustand) with auto-dismiss (3s), `ToastContainer` component
+- `bindings.ts` updated with all action keybinds
+- Cursor auto-adjusts after thread removal (clamps to new list bounds, clears active thread)
+- `useBulkActions` return value memoized by label to avoid re-registering tinykeys every render
+- Clean production build verified
+
+**Notes:**
+- Actions operate on threads (not individual messages) via Gmail `threads.modify`/`threads.trash` API
+- Archive = remove INBOX label; Spam = add SPAM + remove INBOX; Star/Unread = toggle based on current state
+- `removeThreadsFromCache` optimistically strips threads from the infinite query pages for archive/trash/spam
+- `updateThreadLabelsInCache` optimistically flips label arrays for star/unread (thread stays in list)
+- After mutation (success or error), `invalidateQueries` re-fetches to ensure cache consistency
+
+**Next up:** Phase 6 — Visual mode + bulk actions
+
+### 2026-03-23 — Phase 6 Complete
+
+**What was done:**
+- `V` (`Shift+v`) enters VISUAL mode, sets selection anchor at cursor, highlights cursor row
+- `j`/`k` in VISUAL mode extends selection range (all IDs between anchor and cursor, inclusive)
+- `Escape` or `V` again exits VISUAL mode, clears selection
+- All action keybinds (`e`, `d`, `!`, `s`, `u`) work in both NORMAL (cursor) and VISUAL (selection) modes
+- Actions in VISUAL mode auto-exit to NORMAL and clear selection after firing
+- `SelectionBar` component: floats at bottom of list, shows count + clickable action buttons with keybind hints
+- `EmailRow` gains `isSelected` prop: selected rows get `bg-blue-950/40` highlight
+- Trash keybind changed from `#`/`Shift+3` to `d` (per user edit to bindings.ts)
+- `useBulkActions` already handles multi-ID operations via `Promise.all` (from Phase 5)
+- Clean production build verified
+
+**Notes:**
+- Visual selection uses `selectionAnchor` (set on V press) + `cursorIndex` to compute range — supports both downward and upward selection
+- `getActionIds()` helper in useKeybinds returns selected IDs in VISUAL mode or `[cursorId]` in NORMAL — unifies action handlers for both modes
+- `SelectionBar` renders inside `EmailList` with `absolute` positioning + z-index, only visible when VISUAL mode + selectedIds > 0
+
+**Next up:** Phase 7 — Labels + search
+
+### 2026-03-23 — Phase 7 Complete
+
+**What was done:**
+- `useLabels` hook: TanStack Query fetch for all Gmail labels
+- Sidebar: dynamic user labels section below system labels, sorted alphabetically, hidden system/category labels filtered out
+- `LabelPicker` component: modal overlay with filter input, arrow key / j/k navigation, Enter to apply, Escape to close
+- `l` keybind: opens label picker for cursor thread (NORMAL) or selected threads (VISUAL), doesn't conflict with detail pane horizontal scroll
+- Search bar in Topbar: `/` focuses input (enters INSERT mode), Enter submits query via `?q=` URL param, Escape clears and exits
+- `[label]/page.tsx` reads `q` search param via `useSearchParams()` and passes to `EmailList`
+- `useMessages` already accepted `q` param (from Phase 2) — now wired end-to-end
+- `bindings.ts` updated with `/`, `l`, `V` keybind entries
+- Clean production build verified
+
+**Notes:**
+- Search uses URL query params (`?q=...`) so it's bookmarkable and survives page refresh
+- Search input ref exposed via `window.__searchInputRef` for the `/` keybind to focus it from tinykeys
+- `l` handler merged into existing `l` keybind (was detail pane scroll) — checks focusedPane to decide behavior
+- LabelPicker applies labels via PATCH `/api/gmail/threads/[id]` with `addLabelIds`
+- Sidebar filters out system labels (INBOX, STARRED, etc.) and category labels to avoid duplicates
+
+**Next up:** Phase 8 — Polish
+
+### 2026-03-23 — Phase 8 Complete
+
+**What was done:**
+- `CommandPalette` component: `?` (`Shift+/`) opens modal showing all keybinds, grouped by category (Navigation, Actions, Visual, General), filterable by description or key
+- Mute thread: `m` keybind archives the thread (removes INBOX label) — same behavior as `e` per Gmail semantics
+- Unread count badges: sidebar system labels show blue pill badge with `threadsUnread` count from labels API (caps at "99+")
+- Loading states: spinner animation (CSS `@keyframes spin`) + descriptive text for both EmailList and EmailDetail loading
+- Error states: two-line error display (title + detail message) for both EmailList and EmailDetail
+- Empty state: "No messages" with search hint when `q` param is active
+- `bindings.ts` updated with `m` (mute) and `Shift+/` (command palette) entries
+- Clean production build verified
+
+**Notes:**
+- `KeybindHint` hover overlays deferred — keybind discoverability already covered by command palette (`?`) + sidebar shortcut hints
+- Mute in Gmail = archive; true mute (ignore future replies) would need a custom label or the `ignore` API which doesn't exist in basic Gmail API — archive is the practical equivalent
+- `CommandPalette` groups bindings by action name matching, not by a new field — keeps bindings.ts simple
+
+**All phases complete.** Project is ready for testing and troubleshooting.

@@ -19,3 +19,33 @@ body {
   background: var(--background);
   font-family: system-ui, -apple-system, sans-serif;
 }
+
+/* Scope inline email HTML so it doesn't bleed into the app */
+.email-body img {
+  max-width: 100%;
+  height: auto;
+}
+.email-body a {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+.email-body table {
+  max-width: 100%;
+}
+.email-body * {
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* Spinner animation for loading states */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid transparent;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
