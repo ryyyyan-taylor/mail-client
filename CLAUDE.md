@@ -51,7 +51,7 @@ vimmail/
 ├── components/
 │   ├── layout/
 │   │   ├── Sidebar.tsx               # Label/folder nav (dynamic from Gmail)
-│   │   ├── Topbar.tsx                # Search bar, avatar
+│   │   ├── Topbar.tsx                # Search bar, settings gear, avatar
 │   │   └── AppShell.tsx              # Sidebar + content layout wrapper
 │   ├── mail/
 │   │   ├── EmailList.tsx             # Virtualized list (TanStack Virtual)
@@ -60,8 +60,8 @@ vimmail/
 │   │   ├── SelectionBar.tsx          # Bulk action bar (visible when selection > 0)
 │   │   └── LabelPicker.tsx           # Label assignment popover
 │   └── ui/
-│       ├── CommandPalette.tsx        # ? key: shows all keybinds
-│       ├── KeybindHint.tsx           # Small kbd overlays on hover
+│       ├── CommandPalette.tsx        # p key: shows all keybinds (uses effective keys)
+│       ├── SettingsPanel.tsx         # Gear icon: editable keybind settings panel
 │       └── Toast.tsx                 # Action feedback (e.g. "Archived 5 threads")
 │
 ├── lib/
@@ -72,12 +72,13 @@ vimmail/
 │   │   ├── labels.ts                 # listLabels
 │   │   └── codec.ts                  # base64url decode for email bodies
 │   ├── keybinds/
-│   │   ├── bindings.ts               # Central keybind config map (source of truth)
-│   │   ├── useKeybinds.ts            # Hook: registers tinykeys listeners, respects mode
+│   │   ├── bindings.ts               # Central keybind config (action, key, mode, category)
+│   │   ├── useKeybinds.ts            # Hook: builds tinykeys map dynamically from effective bindings
 │   │   └── modes.ts                  # Mode enum + transition logic
 │   └── store/
 │       ├── mailStore.ts              # cursorIndex, selectionAnchor, selectedIds, activeThreadId
-│       └── uiStore.ts                # commandPaletteOpen, labelPickerOpen, currentMode
+│       ├── uiStore.ts                # commandPaletteOpen, labelPickerOpen, settingsOpen, mode
+│       └── keybindStore.ts           # User keybind overrides, persisted to localStorage
 │
 ├── hooks/
 │   ├── useMessages.ts                # TanStack Query: list + infinite scroll
@@ -422,7 +423,7 @@ Mutations should `invalidateQueries` on the relevant message/thread list after s
 - No push notifications (polling on window focus is acceptable)
 - No calendar, Meet, or Chat integration
 - No multi-account support
-- No keyboard remap settings UI (bindings are in `bindings.ts` — edit the file)
+- No Shift+ modifier support in keybind settings (single-character keys only)
 
 ---
 
@@ -621,3 +622,22 @@ Free tier is sufficient for personal use. Gmail API quotas (1B units/day) will n
 - `CommandPalette` groups bindings by action name matching, not by a new field — keeps bindings.ts simple
 
 **All phases complete.** Project is ready for testing and troubleshooting.
+
+### 2026-03-24 — Keybind Settings Panel + Favicon
+
+**What was done:**
+- `lib/store/keybindStore.ts` (new): Zustand store with `persist` middleware — stores user keybind overrides as `Record<action, key>` in localStorage key `vimmail-keybinds`. Provides `getEffectiveBindings()` (defaults + overrides merged) and `findConflicts()` (checks mode overlap).
+- `lib/keybinds/bindings.ts`: Added `category: KeyCategory` field (`navigation` | `go` | `actions` | `visual` | `general`) and `isEditable()` helper (single-char keys only). Added missing bindings: `h` (scrollLeft), `[` (prevThread), `]` (nextThread).
+- `lib/keybinds/useKeybinds.ts`: Major refactor — separated action logic into `actionHandlers` map keyed by action name, then builds tinykeys handler map dynamically from `getEffectiveBindings()`. Same-key actions are chained; mode guards prevent double-fire. Subscribes to `overridesKey` (JSON.stringify of overrides) to re-register on change.
+- `components/ui/SettingsPanel.tsx` (new): Right-side sliding panel (420px, full height, backdrop). All keybinds grouped by category. Single-char bindings show a clickable key badge — click to enter edit mode (pulses blue, shows "…"), press any single character to rebind. Conflict detection shows inline red error and blocks save. Per-binding reset (↺) and "Reset all" buttons. Capture-phase keydown listener blocks tinykeys while open; Escape cancels edit or closes panel.
+- `lib/store/uiStore.ts`: Added `settingsOpen` / `setSettingsOpen`.
+- `components/layout/Topbar.tsx`: Added gear SVG icon button (opens settings panel) between search bar and avatar.
+- `components/ui/CommandPalette.tsx`: Updated to use `getEffectiveBindings()` so displayed keys reflect current overrides.
+- `app/icon.svg` (new): SVG favicon — blue envelope on dark rounded square, matches app color scheme.
+- `app/(app)/[label]/page.tsx`: Dynamic `document.title` via `useEffect` — e.g. "Inbox — VimMail", "Trash — VimMail", `Inbox — "query" — VimMail`. Maps internal label IDs (INBOX, STARRED, etc.) to display names.
+
+**Architecture notes:**
+- Keybind overrides persist in localStorage indefinitely (no expiry) — single user, personal app
+- `useKeybinds` re-registers tinykeys whenever overrides change (dep: `JSON.stringify(overrides)`)
+- Multi-key sequences (`g i`, `g g`) and special keys (`Enter`, `Escape`) are shown in settings but locked (not editable) — `isEditable()` returns false for `key.length !== 1`
+- `labelPicker` action retains dual behavior: opens picker in LIST pane, scrolls right in DETAIL pane

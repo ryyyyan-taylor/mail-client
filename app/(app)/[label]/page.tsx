@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef } from "react"
+import { useEffect, useRef } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import { useMailStore } from "@/lib/store/mailStore"
 import { useUIStore } from "@/lib/store/uiStore"
@@ -17,6 +17,23 @@ export default function LabelPage() {
   const searchParams = useSearchParams()
   const label = decodeURIComponent(params.label)
   const q = searchParams.get("q") || undefined
+
+  // Dynamic page title
+  useEffect(() => {
+    const LABEL_NAMES: Record<string, string> = {
+      INBOX: "Inbox",
+      STARRED: "Starred",
+      SENT: "Sent",
+      DRAFT: "Drafts",
+      SPAM: "Spam",
+      TRASH: "Trash",
+      ALL: "All Mail",
+    }
+    const displayName = LABEL_NAMES[label] ?? label
+    document.title = q
+      ? `${displayName} — "${q}" — VimMail`
+      : `${displayName} — VimMail`
+  }, [label, q])
   const activeThreadId = useMailStore((s) => s.activeThreadId)
   const focusedPane = useUIStore((s) => s.focusedPane)
   const detailScrollRef = useRef<HTMLDivElement>(null)
