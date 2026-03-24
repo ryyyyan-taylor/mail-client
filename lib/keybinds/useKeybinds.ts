@@ -15,6 +15,7 @@ interface BulkActions {
   spam: (ids: string[]) => void
   toggleStar: (ids: string[]) => void
   toggleUnread: (ids: string[]) => void
+  undo: () => void
 }
 
 interface UseKeybindsOpts {
@@ -283,13 +284,19 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
         e.preventDefault()
         actions.toggleStar(ids)
       },
-      u(e) {
+      y(e) {
         const { mode } = useUIStore.getState()
         if (mode !== "NORMAL" && mode !== "VISUAL") return
         const ids = getActionIds()
         if (ids.length === 0) return
         e.preventDefault()
         actions.toggleUnread(ids)
+      },
+      u(e) {
+        const { mode } = useUIStore.getState()
+        if (mode !== "NORMAL") return
+        e.preventDefault()
+        actions.undo()
       },
 
       // --- Mute thread (remove INBOX, add muted label-like behavior) ---

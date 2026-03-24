@@ -6,6 +6,7 @@ import { useParams } from "next/navigation"
 import { queryKeys } from "@/lib/queryKeys"
 import { useMailStore } from "@/lib/store/mailStore"
 import { useToastStore } from "@/lib/store/toastStore"
+import { useUndoStore } from "@/lib/store/undoStore"
 import type { ThreadListItem } from "@/hooks/useMessages"
 
 interface ThreadsPage {
@@ -151,6 +152,10 @@ export function useBulkActions() {
     )
   }
 
+  function pushUndo(entry: Omit<import("@/lib/store/undoStore").UndoEntry, "label">) {
+    useUndoStore.getState().push({ ...entry, label })
+  }
+
   /** Archive: remove INBOX label (removes from inbox, thread still exists) */
   async function archive(ids: string[]) {
     const threadIds = new Set(ids)
@@ -159,7 +164,9 @@ export function useBulkActions() {
 
     try {
       await modifyThreads(ids, { removeLabelIds: ["INBOX"] })
-      useToastStore.getState().addToast(`Archived ${ids.length} thread${ids.length > 1 ? "s" : ""}`)
+      const desc = `Archived ${ids.length} thread${ids.length > 1 ? "s" : ""}`
+      pushUndo({ description: desc, threadIds: ids, addLabelIds: [], removeLabelIds: ["INBOX"], trashed: false })
+      useToastStore.getState().addToast(desc)
     } catch {
       rollback(prev)
       useToastStore.getState().addToast("Failed to archive", "error")
@@ -175,7 +182,9 @@ export function useBulkActions() {
 
     try {
       await trashThreads(ids)
-      useToastStore.getState().addToast(`Trashed ${ids.length} thread${ids.length > 1 ? "s" : ""}`)
+      const desc = `Trashed ${ids.length} thread${ids.length > 1 ? "s" : ""}`
+      pushUndo({ description: desc, threadIds: ids, addLabelIds: ["TRASH"], removeLabelIds: ["INBOX"], trashed: true })
+      useToastStore.getState().addToast(desc)
     } catch {
       rollback(prev)
       useToastStore.getState().addToast("Failed to trash", "error")
@@ -191,7 +200,9 @@ export function useBulkActions() {
 
     try {
       await modifyThreads(ids, { addLabelIds: ["SPAM"], removeLabelIds: ["INBOX"] })
-      useToastStore.getState().addToast(`Marked ${ids.length} thread${ids.length > 1 ? "s" : ""} as spam`)
+      const desc = `Marked ${ids.length} thread${ids.length > 1 ? "s" : ""} as spam`
+      pushUndo({ description: desc, threadIds: ids, addLabelIds: ["SPAM"], removeLabelIds: ["INBOX"], trashed: false })
+      useToastStore.getState().addToast(desc)
     } catch {
       rollback(prev)
       useToastStore.getState().addToast("Failed to mark as spam", "error")
@@ -215,7 +226,9 @@ export function useBulkActions() {
 
     try {
       await modifyThreads(ids, { addLabelIds, removeLabelIds })
-      useToastStore.getState().addToast(isCurrentlyStarred ? "Unstarred" : "Starred")
+      const desc = isCurrentlyStarred ? "Unstarred" : "Starred"
+      pushUndo({ description: desc, threadIds: ids, addLabelIds, removeLabelIds, trashed: false })
+      useToastStore.getState().addToast(desc)
     } catch {
       rollback(prev)
       useToastStore.getState().addToast("Failed to update star", "error")
@@ -238,7 +251,9 @@ export function useBulkActions() {
 
     try {
       await modifyThreads(ids, { addLabelIds, removeLabelIds })
-      useToastStore.getState().addToast(isCurrentlyUnread ? "Marked as read" : "Marked as unread")
+      const desc = isCurrentlyUnread ? "Marked as read" : "Marked as unread"
+      pushUndo({ description: desc, threadIds: ids, addLabelIds, removeLabelIds, trashed: false })
+      useToastStore.getState().addToast(desc)
     } catch {
       rollback(prev)
       useToastStore.getState().addToast("Failed to update read status", "error")
@@ -246,6 +261,46 @@ export function useBulkActions() {
     queryClient.invalidateQueries({ queryKey: getQueryKey() })
   }
 
+  /** Undo the last action */
+  async function undo() {
+    const entry = useUndoStore.getState().pop()
+    if (!entry) {
+      useToastStore.getState().addToast("Nothing to undo")
+      return
+    }
+
+    try {
+      if (entry.trashed) {
+        // Untrash via dedicated API
+        await Promise.all(
+          entry.threadIds.map((id) =>
+            fetch(`/api/gmail/threads/${id}/untrash`, { method: "POST" }).then((r) => {
+              if (!r.ok) throw new Error(`Failed to untrash thread ${id}`)
+            })
+          )
+        )
+        // Re-add the labels that were removed (e.g. INBOX)
+        if (entry.removeLabelIds.length > 0) {
+          await modifyThreads(entry.threadIds, { addLabelIds: entry.removeLabelIds })
+        }
+      } else {
+        // Reverse: swap add/remove
+        await modifyThreads(entry.threadIds, {
+          addLabelIds: entry.removeLabelIds,
+          removeLabelIds: entry.addLabelIds,
+        })
+      }
+      useToastStore.getState().addToast(`Undid: ${entry.description}`)
+    } catch {
+      useToastStore.getState().addToast("Failed to undo", "error")
+    }
+    // Invalidate both the current view and the original action's view
+    queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    if (entry.label !== label) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.messages(entry.label) })
+    }
+  }
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => ({ archive, trash, spam, toggleStar, toggleUnread }), [label])
+  return useMemo(() => ({ archive, trash, spam, toggleStar, toggleUnread, undo }), [label])
 }

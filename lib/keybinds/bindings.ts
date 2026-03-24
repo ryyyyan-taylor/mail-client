@@ -38,7 +38,8 @@ export const bindings: KeyBinding[] = [
   { key: "d", description: "Trash", mode: "NORMAL", action: "trash" },
   { key: "x", description: "Mark spam", mode: "NORMAL", action: "spam" },
   { key: "s", description: "Toggle star", mode: "NORMAL", action: "toggleStar" },
-  { key: "u", description: "Toggle read/unread", mode: "NORMAL", action: "toggleUnread" },
+  { key: "y", description: "Toggle read/unread", mode: "NORMAL", action: "toggleUnread" },
+  { key: "u", description: "Undo last action", mode: "NORMAL", action: "undo" },
   { key: "m", description: "Mute thread", mode: "NORMAL", action: "mute" },
   { key: "p", description: "Open command palette", mode: "NORMAL", action: "commandPalette" },
 

@@ -40,3 +40,8 @@ export async function trashThread(gmail: gmail_v1.Gmail, id: string) {
   const res = await gmail.users.threads.trash({ userId: "me", id })
   return res.data
 }
+
+export async function untrashThread(gmail: gmail_v1.Gmail, id: string) {
+  const res = await gmail.users.threads.untrash({ userId: "me", id })
+  return res.data
+}

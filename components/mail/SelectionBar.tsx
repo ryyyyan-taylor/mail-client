@@ -59,7 +59,7 @@ export function SelectionBar() {
         onClick={() => actNonDestructive(actions.toggleUnread)}
         className="rounded px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700"
       >
-        Read/Unread <kbd className="ml-1 text-neutral-500">u</kbd>
+        Read/Unread <kbd className="ml-1 text-neutral-500">y</kbd>
       </button>
     </div>
   )
