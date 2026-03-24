@@ -26,7 +26,7 @@ export function SelectionBar() {
   }
 
   return (
-    <div className="absolute bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-neutral-800 px-4 py-2 shadow-lg">
+    <div className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-neutral-800 px-4 py-2 shadow-lg">
       <span className="text-sm text-neutral-300">
         {selectedIds.size} selected
       </span>

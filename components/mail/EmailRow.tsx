@@ -37,15 +37,17 @@ interface EmailRowProps {
   isCursor: boolean
   isSelected: boolean
   style: React.CSSProperties
+  onClick?: () => void
 }
 
-export function EmailRow({ thread, isCursor, isSelected, style }: EmailRowProps) {
+export function EmailRow({ thread, isCursor, isSelected, style, onClick }: EmailRowProps) {
   const { sender, subject, snippet, date, isUnread, isStarred } =
     getMessageFields(thread.message)
 
   return (
     <div
       style={style}
+      onClick={onClick}
       className={`flex items-center gap-3 px-4 border-b border-neutral-800/50 cursor-default select-none ${
         isCursor
           ? "bg-blue-950/60 border-l-2 border-l-blue-400"
@@ -77,13 +79,13 @@ export function EmailRow({ thread, isCursor, isSelected, style }: EmailRowProps)
       {/* Subject + snippet */}
       <div className="flex min-w-0 flex-1 items-baseline gap-2">
         <span
-          className={`truncate text-sm ${
+          className={`shrink-0 text-sm ${
             isUnread ? "font-semibold text-white" : "text-neutral-300"
           }`}
         >
           {subject || "(no subject)"}
         </span>
-        <span className="truncate text-sm text-neutral-600">
+        <span className="min-w-0 truncate text-sm text-neutral-600">
           {snippet}
         </span>
       </div>

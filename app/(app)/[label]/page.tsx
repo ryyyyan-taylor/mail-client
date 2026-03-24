@@ -37,6 +37,8 @@ export default function LabelPage() {
         right={detailPane}
         leftFocused={focusedPane === "LIST"}
         rightFocused={focusedPane === "DETAIL" && !!activeThreadId}
+        onLeftClick={() => useUIStore.getState().setFocusedPane("LIST")}
+        onRightClick={() => useUIStore.getState().setFocusedPane("DETAIL")}
       />
       <LabelPicker />
       <CommandPalette />

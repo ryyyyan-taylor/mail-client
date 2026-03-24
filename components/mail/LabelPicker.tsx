@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useUIStore } from "@/lib/store/uiStore"
+import { useMailStore } from "@/lib/store/mailStore"
 import { useLabels } from "@/hooks/useLabels"
 import { useToastStore } from "@/lib/store/toastStore"
 import { useQueryClient } from "@tanstack/react-query"
@@ -71,6 +72,11 @@ export function LabelPicker() {
   const close = useCallback(() => {
     useUIStore.getState().setLabelPickerOpen(false)
     useUIStore.getState().setLabelPickerTargetIds([])
+    // Exit visual mode if active
+    if (useUIStore.getState().mode === "VISUAL") {
+      useMailStore.getState().clearSelection()
+      useUIStore.getState().setMode("NORMAL")
+    }
   }, [])
 
   const applyLabel = useCallback(async (labelId: string, labelName: string) => {

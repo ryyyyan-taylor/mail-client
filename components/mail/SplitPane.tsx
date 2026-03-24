@@ -7,6 +7,8 @@ interface SplitPaneProps {
   right: React.ReactNode
   leftFocused: boolean
   rightFocused: boolean
+  onLeftClick?: () => void
+  onRightClick?: () => void
   defaultRatio?: number // 0-1, portion for left pane
 }
 
@@ -15,6 +17,8 @@ export function SplitPane({
   right,
   leftFocused,
   rightFocused,
+  onLeftClick,
+  onRightClick,
   defaultRatio = 0.5,
 }: SplitPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -54,6 +58,7 @@ export function SplitPane({
           leftFocused ? "border-blue-500" : "border-neutral-800"
         }`}
         style={{ width: `${ratio * 100}%` }}
+        onMouseDown={onLeftClick}
       >
         <div className="absolute inset-0">{left}</div>
       </div>
@@ -70,6 +75,7 @@ export function SplitPane({
           rightFocused ? "border-blue-500" : "border-neutral-800"
         }`}
         style={{ width: `${(1 - ratio) * 100}%` }}
+        onMouseDown={onRightClick}
       >
         <div className="absolute inset-0">{right}</div>
       </div>

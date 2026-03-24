@@ -4,6 +4,7 @@ import { useRef, useEffect, useCallback, type RefObject } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useMessages, type ThreadListItem } from "@/hooks/useMessages"
 import { useMailStore } from "@/lib/store/mailStore"
+import { useUIStore } from "@/lib/store/uiStore"
 import { useKeybinds } from "@/lib/keybinds/useKeybinds"
 import { useVirtualCursor } from "@/hooks/useVirtualCursor"
 import { useBulkActions } from "@/hooks/useBulkActions"
@@ -121,6 +122,11 @@ export function EmailList({ label, q, detailScrollRef }: EmailListProps) {
               thread={thread}
               isCursor={virtualRow.index === cursorIndex}
               isSelected={selectedIds.has(thread.id)}
+              onClick={() => {
+                useMailStore.getState().setCursor(virtualRow.index)
+                useMailStore.getState().setActiveThread(thread.id)
+                useUIStore.getState().setFocusedPane("DETAIL")
+              }}
               style={{
                 position: "absolute",
                 top: 0,
