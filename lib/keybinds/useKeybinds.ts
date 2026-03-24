@@ -6,6 +6,7 @@ import { tinykeys } from "tinykeys"
 import { useRouter, useParams } from "next/navigation"
 import { useMailStore } from "@/lib/store/mailStore"
 import { useUIStore } from "@/lib/store/uiStore"
+import { useKeybindStore, getEffectiveBindings } from "@/lib/store/keybindStore"
 
 const SCROLL_STEP = 80
 
@@ -28,6 +29,7 @@ interface UseKeybindsOpts {
 export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions }: UseKeybindsOpts) {
   const router = useRouter()
   const params = useParams<{ label: string }>()
+  const overridesKey = useKeybindStore((s) => JSON.stringify(s.overrides))
 
   useEffect(() => {
     const clamp = (n: number) => Math.max(0, Math.min(n, threadCount - 1))
@@ -38,7 +40,6 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
       el.scrollBy({ top: dy, left: dx })
     }
 
-    /** Get IDs to act on: selected IDs in VISUAL mode, or cursor thread in NORMAL */
     function getActionIds(): string[] {
       const { mode } = useUIStore.getState()
       if (mode === "VISUAL") {
@@ -49,7 +50,6 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
       return id ? [id] : []
     }
 
-    /** After a bulk action in VISUAL mode, exit back to NORMAL */
     function exitVisualAfterAction() {
       if (useUIStore.getState().mode === "VISUAL") {
         useMailStore.getState().clearSelection()
@@ -57,7 +57,6 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
       }
     }
 
-    /** Compute selected IDs between anchor and cursor (inclusive) */
     function computeSelectionRange(newCursorIndex: number): string[] {
       const anchor = useMailStore.getState().selectionAnchor
       if (anchor === null) return []
@@ -71,136 +70,122 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
       return ids
     }
 
-    const handlers: Record<string, (e: KeyboardEvent) => void> = {
-      j(e) {
-        const { mode } = useUIStore.getState()
-        if (mode === "VISUAL") {
-          e.preventDefault()
-          const next = clamp(useMailStore.getState().cursorIndex + 1)
-          const ids = computeSelectionRange(next)
-          useMailStore.getState().extendSelection(ids, next)
-          return
-        }
-        if (mode !== "NORMAL") return
+    function goToLabel(path: string) {
+      useMailStore.getState().setCursor(0)
+      useMailStore.getState().setActiveThread(null)
+      useUIStore.getState().setFocusedPane("LIST")
+      router.push(path)
+    }
+
+    // Map action names to handler functions
+    const actionHandlers: Record<string, (e: KeyboardEvent) => void> = {
+      cursorDown(e) {
+        if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
-        const { focusedPane } = useUIStore.getState()
-        if (focusedPane === "DETAIL") {
+        if (useUIStore.getState().focusedPane === "DETAIL") {
           scrollDetail(0, SCROLL_STEP)
         } else {
-          const next = clamp(useMailStore.getState().cursorIndex + 1)
-          useMailStore.getState().setCursor(next)
+          useMailStore.getState().setCursor(clamp(useMailStore.getState().cursorIndex + 1))
         }
       },
-      k(e) {
-        const { mode } = useUIStore.getState()
-        if (mode === "VISUAL") {
-          e.preventDefault()
-          const next = clamp(useMailStore.getState().cursorIndex - 1)
-          const ids = computeSelectionRange(next)
-          useMailStore.getState().extendSelection(ids, next)
-          return
-        }
-        if (mode !== "NORMAL") return
+      cursorUp(e) {
+        if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
-        const { focusedPane } = useUIStore.getState()
-        if (focusedPane === "DETAIL") {
+        if (useUIStore.getState().focusedPane === "DETAIL") {
           scrollDetail(0, -SCROLL_STEP)
         } else {
-          const next = clamp(useMailStore.getState().cursorIndex - 1)
-          useMailStore.getState().setCursor(next)
+          useMailStore.getState().setCursor(clamp(useMailStore.getState().cursorIndex - 1))
         }
       },
-      h(e) {
-        if (useUIStore.getState().mode !== "NORMAL") return
-        const { focusedPane } = useUIStore.getState()
-        if (focusedPane === "DETAIL") {
-          e.preventDefault()
-          scrollDetail(-SCROLL_STEP, 0)
-        }
-      },
-      l(e) {
-        const { mode, focusedPane } = useUIStore.getState()
-        // In VISUAL mode, open label picker
-        if (mode === "VISUAL") {
-          const ids = getActionIds()
-          if (ids.length === 0) return
-          e.preventDefault()
-          useUIStore.getState().setLabelPickerTargetIds(ids)
-          useUIStore.getState().setLabelPickerOpen(true)
-          return
-        }
-        if (mode !== "NORMAL") return
-        if (focusedPane === "DETAIL") {
-          // Scroll detail pane horizontally
-          e.preventDefault()
-          scrollDetail(SCROLL_STEP, 0)
-        } else {
-          // Open label picker for cursor thread
-          const id = getThreadId(useMailStore.getState().cursorIndex)
-          if (!id) return
-          e.preventDefault()
-          useUIStore.getState().setLabelPickerTargetIds([id])
-          useUIStore.getState().setLabelPickerOpen(true)
-        }
-      },
-      "g g"(e) {
+      jumpTop(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
-        const { focusedPane } = useUIStore.getState()
-        if (focusedPane === "DETAIL") {
+        if (useUIStore.getState().focusedPane === "DETAIL") {
           const el = detailScrollRef.current
           if (el) el.scrollTop = 0
         } else {
           useMailStore.getState().setCursor(0)
         }
       },
-      G(e) {
+      jumpBottom(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
-        const { focusedPane } = useUIStore.getState()
-        if (focusedPane === "DETAIL") {
+        if (useUIStore.getState().focusedPane === "DETAIL") {
           const el = detailScrollRef.current
           if (el) el.scrollTop = el.scrollHeight
         } else {
           useMailStore.getState().setCursor(threadCount - 1)
         }
       },
-      Enter(e) {
+      openThread(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
-        const { focusedPane } = useUIStore.getState()
-        if (focusedPane === "LIST") {
-          const idx = useMailStore.getState().cursorIndex
-          const id = getThreadId(idx)
-          if (!id) return
-          e.preventDefault()
-          useMailStore.getState().setActiveThread(id)
-          useUIStore.getState().setFocusedPane("DETAIL")
-        }
+        if (useUIStore.getState().focusedPane !== "LIST") return
+        const idx = useMailStore.getState().cursorIndex
+        const id = getThreadId(idx)
+        if (!id) return
+        e.preventDefault()
+        useMailStore.getState().setActiveThread(id)
+        useUIStore.getState().setFocusedPane("DETAIL")
       },
-      Escape(e) {
+      escape(e) {
         const { mode, focusedPane } = useUIStore.getState()
         e.preventDefault()
         if (mode === "VISUAL") {
-          // Move cursor to the top of the selection range before clearing
           const anchor = useMailStore.getState().selectionAnchor
           const cursor = useMailStore.getState().cursorIndex
-          if (anchor !== null) {
-            useMailStore.getState().setCursor(Math.min(anchor, cursor))
-          }
+          if (anchor !== null) useMailStore.getState().setCursor(Math.min(anchor, cursor))
           useMailStore.getState().clearSelection()
           useUIStore.getState().setMode("NORMAL")
         } else if (mode === "INSERT") {
           useUIStore.getState().setMode("NORMAL")
-          if (document.activeElement instanceof HTMLElement) {
-            document.activeElement.blur()
-          }
+          if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
         } else if (focusedPane === "DETAIL") {
           useUIStore.getState().setFocusedPane("LIST")
         }
       },
+      prevThread(e) {
+        if (useUIStore.getState().mode !== "NORMAL") return
+        if (!useMailStore.getState().activeThreadId) return
+        e.preventDefault()
+        const cursor = useMailStore.getState().cursorIndex
+        if (cursor <= 0) return
+        const prevId = getThreadId(cursor - 1)
+        if (!prevId) return
+        useMailStore.getState().setCursor(cursor - 1)
+        useMailStore.getState().setActiveThread(prevId)
+      },
+      nextThread(e) {
+        if (useUIStore.getState().mode !== "NORMAL") return
+        if (!useMailStore.getState().activeThreadId) return
+        e.preventDefault()
+        const cursor = useMailStore.getState().cursorIndex
+        if (cursor >= threadCount - 1) return
+        const nextId = getThreadId(cursor + 1)
+        if (!nextId) return
+        useMailStore.getState().setCursor(cursor + 1)
+        useMailStore.getState().setActiveThread(nextId)
+      },
+      scrollLeft(e) {
+        if (useUIStore.getState().mode !== "NORMAL") return
+        if (useUIStore.getState().focusedPane !== "DETAIL") return
+        e.preventDefault()
+        scrollDetail(-SCROLL_STEP, 0)
+      },
 
-      // V — enter/exit VISUAL mode
-      V(e) {
+      // Visual mode
+      visualDown(e) {
+        if (useUIStore.getState().mode !== "VISUAL") return
+        e.preventDefault()
+        const next = clamp(useMailStore.getState().cursorIndex + 1)
+        useMailStore.getState().extendSelection(computeSelectionRange(next), next)
+      },
+      visualUp(e) {
+        if (useUIStore.getState().mode !== "VISUAL") return
+        e.preventDefault()
+        const next = clamp(useMailStore.getState().cursorIndex - 1)
+        useMailStore.getState().extendSelection(computeSelectionRange(next), next)
+      },
+      visualToggle(e) {
         const { mode } = useUIStore.getState()
         if (mode === "INSERT") return
         e.preventDefault()
@@ -208,47 +193,17 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
           useMailStore.getState().clearSelection()
           useUIStore.getState().setMode("NORMAL")
         } else {
-          // Enter VISUAL: focus list pane, set anchor, select cursor row
           useUIStore.getState().setFocusedPane("LIST")
           useMailStore.getState().enterVisualMode()
           const idx = useMailStore.getState().cursorIndex
           const id = getThreadId(idx)
-          if (id) {
-            useMailStore.getState().extendSelection([id], idx)
-          }
+          if (id) useMailStore.getState().extendSelection([id], idx)
           useUIStore.getState().setMode("VISUAL")
         }
       },
 
-      // [ / ] — prev/next thread (works from either pane)
-      "["(e) {
-        if (useUIStore.getState().mode !== "NORMAL") return
-        if (!useMailStore.getState().activeThreadId) return
-        e.preventDefault()
-        const cursor = useMailStore.getState().cursorIndex
-        if (cursor <= 0) return
-        const prevIndex = cursor - 1
-        const prevId = getThreadId(prevIndex)
-        if (!prevId) return
-        useMailStore.getState().setCursor(prevIndex)
-        useMailStore.getState().setActiveThread(prevId)
-      },
-      "]"(e) {
-        if (useUIStore.getState().mode !== "NORMAL") return
-        if (!useMailStore.getState().activeThreadId) return
-        e.preventDefault()
-        const cursor = useMailStore.getState().cursorIndex
-        if (cursor >= threadCount - 1) return
-        const nextIndex = cursor + 1
-        const nextId = getThreadId(nextIndex)
-        if (!nextId) return
-        useMailStore.getState().setCursor(nextIndex)
-        useMailStore.getState().setActiveThread(nextId)
-      },
-
-      // --- Actions (work in NORMAL on cursor, or VISUAL on selection) ---
-      // Destructive actions: exit VISUAL after action
-      e(e) {
+      // Actions
+      archive(e) {
         const { mode } = useUIStore.getState()
         if (mode !== "NORMAL" && mode !== "VISUAL") return
         const ids = getActionIds()
@@ -257,7 +212,7 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
         exitVisualAfterAction()
         actions.archive(ids)
       },
-      d(e) {
+      trash(e) {
         const { mode } = useUIStore.getState()
         if (mode !== "NORMAL" && mode !== "VISUAL") return
         const ids = getActionIds()
@@ -266,7 +221,7 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
         exitVisualAfterAction()
         actions.trash(ids)
       },
-      x(e) {
+      spam(e) {
         const { mode } = useUIStore.getState()
         if (mode !== "NORMAL" && mode !== "VISUAL") return
         const ids = getActionIds()
@@ -275,8 +230,7 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
         exitVisualAfterAction()
         actions.spam(ids)
       },
-      // Non-destructive actions: keep selection in VISUAL mode
-      s(e) {
+      toggleStar(e) {
         const { mode } = useUIStore.getState()
         if (mode !== "NORMAL" && mode !== "VISUAL") return
         const ids = getActionIds()
@@ -284,7 +238,7 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
         e.preventDefault()
         actions.toggleStar(ids)
       },
-      y(e) {
+      toggleUnread(e) {
         const { mode } = useUIStore.getState()
         if (mode !== "NORMAL" && mode !== "VISUAL") return
         const ids = getActionIds()
@@ -292,35 +246,26 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
         e.preventDefault()
         actions.toggleUnread(ids)
       },
-      u(e) {
-        const { mode } = useUIStore.getState()
-        if (mode !== "NORMAL") return
+      undo(e) {
+        if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
         actions.undo()
       },
-
-      // --- Mute thread (remove INBOX, add muted label-like behavior) ---
-      m(e) {
+      mute(e) {
         const { mode } = useUIStore.getState()
         if (mode !== "NORMAL" && mode !== "VISUAL") return
         const ids = getActionIds()
         if (ids.length === 0) return
         e.preventDefault()
-        if (mode === "VISUAL") {
-          exitVisualAfterAction()
-        }
-        actions.archive(ids) // mute = archive (removes from inbox)
+        if (mode === "VISUAL") exitVisualAfterAction()
+        actions.archive(ids)
       },
-
-      // --- Command palette ---
-      p(e) {
+      commandPalette(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
         useUIStore.getState().setCommandPaletteOpen(true)
       },
-
-      // --- Search ---
-      "/"(e) {
+      search(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
         const ref = (window as unknown as Record<string, unknown>).__searchInputRef as
@@ -331,67 +276,86 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
           ref.current.select()
         }
       },
+      labelPicker(e) {
+        const { mode, focusedPane } = useUIStore.getState()
+        if (mode === "VISUAL") {
+          const ids = getActionIds()
+          if (ids.length === 0) return
+          e.preventDefault()
+          useUIStore.getState().setLabelPickerTargetIds(ids)
+          useUIStore.getState().setLabelPickerOpen(true)
+          return
+        }
+        if (mode !== "NORMAL") return
+        if (focusedPane === "DETAIL") {
+          e.preventDefault()
+          scrollDetail(SCROLL_STEP, 0)
+        } else {
+          const id = getThreadId(useMailStore.getState().cursorIndex)
+          if (!id) return
+          e.preventDefault()
+          useUIStore.getState().setLabelPickerTargetIds([id])
+          useUIStore.getState().setLabelPickerOpen(true)
+        }
+      },
 
-      // --- g-prefix label navigation ---
-      "g i"(e) {
+      // g-prefix navigation
+      goInbox(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
-        useMailStore.getState().setCursor(0)
-        useMailStore.getState().setActiveThread(null)
-        useUIStore.getState().setFocusedPane("LIST")
-        router.push("/INBOX")
+        goToLabel("/INBOX")
       },
-      "g s"(e) {
+      goStarred(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
-        useMailStore.getState().setCursor(0)
-        useMailStore.getState().setActiveThread(null)
-        useUIStore.getState().setFocusedPane("LIST")
-        router.push("/STARRED")
+        goToLabel("/STARRED")
       },
-      "g t"(e) {
+      goSent(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
-        useMailStore.getState().setCursor(0)
-        useMailStore.getState().setActiveThread(null)
-        useUIStore.getState().setFocusedPane("LIST")
-        router.push("/SENT")
+        goToLabel("/SENT")
       },
-      "g d"(e) {
+      goDrafts(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
-        useMailStore.getState().setCursor(0)
-        useMailStore.getState().setActiveThread(null)
-        useUIStore.getState().setFocusedPane("LIST")
-        router.push("/DRAFT")
+        goToLabel("/DRAFT")
       },
-      "g e"(e) {
+      goAllMail(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
-        useMailStore.getState().setCursor(0)
-        useMailStore.getState().setActiveThread(null)
-        useUIStore.getState().setFocusedPane("LIST")
-        router.push("/ALL")
+        goToLabel("/ALL")
       },
-      "g x"(e) {
+      goSpam(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
-        useMailStore.getState().setCursor(0)
-        useMailStore.getState().setActiveThread(null)
-        useUIStore.getState().setFocusedPane("LIST")
-        router.push("/SPAM")
+        goToLabel("/SPAM")
       },
-      "g r"(e) {
+      goTrash(e) {
         if (useUIStore.getState().mode !== "NORMAL") return
         e.preventDefault()
-        useMailStore.getState().setCursor(0)
-        useMailStore.getState().setActiveThread(null)
-        useUIStore.getState().setFocusedPane("LIST")
-        router.push("/TRASH")
+        goToLabel("/TRASH")
       },
+    }
+
+    // Build tinykeys handler map from effective bindings (defaults + overrides)
+    const effective = getEffectiveBindings()
+    const handlers: Record<string, (e: KeyboardEvent) => void> = {}
+    for (const b of effective) {
+      const handler = actionHandlers[b.action]
+      if (!handler) continue
+      if (handlers[b.key]) {
+        // Multiple actions on the same key — chain them (mode checks prevent double-fire)
+        const prev = handlers[b.key]
+        handlers[b.key] = (e: KeyboardEvent) => {
+          prev(e)
+          handler(e)
+        }
+      } else {
+        handlers[b.key] = handler
+      }
     }
 
     const unsubscribe = tinykeys(window, handlers)
     return () => unsubscribe()
-  }, [threadCount, getThreadId, router, params.label, detailScrollRef, actions])
+  }, [threadCount, getThreadId, router, params.label, detailScrollRef, actions, overridesKey])
 }

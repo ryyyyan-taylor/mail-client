@@ -9,6 +9,7 @@ import { EmailDetail } from "@/components/mail/EmailDetail"
 import { SplitPane } from "@/components/mail/SplitPane"
 import { LabelPicker } from "@/components/mail/LabelPicker"
 import { CommandPalette } from "@/components/ui/CommandPalette"
+import { SettingsPanel } from "@/components/ui/SettingsPanel"
 import { ToastContainer } from "@/components/ui/Toast"
 
 export default function LabelPage() {
@@ -42,6 +43,7 @@ export default function LabelPage() {
       />
       <LabelPicker />
       <CommandPalette />
+      <SettingsPanel />
       <ToastContainer />
     </>
   )

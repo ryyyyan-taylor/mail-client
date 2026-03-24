@@ -16,6 +16,8 @@ interface UIStore {
   setLabelPickerTargetIds: (ids: string[]) => void
   searchQuery: string
   setSearchQuery: (q: string) => void
+  settingsOpen: boolean
+  setSettingsOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -31,4 +33,6 @@ export const useUIStore = create<UIStore>((set) => ({
   setLabelPickerTargetIds: (ids) => set({ labelPickerTargetIds: ids }),
   searchQuery: "",
   setSearchQuery: (q) => set({ searchQuery: q }),
+  settingsOpen: false,
+  setSettingsOpen: (open) => set({ settingsOpen: open }),
 }))

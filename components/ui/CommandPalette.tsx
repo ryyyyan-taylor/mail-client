@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef } from "react"
 import { useUIStore } from "@/lib/store/uiStore"
-import { bindings, type KeyBinding } from "@/lib/keybinds/bindings"
+import { type KeyBinding } from "@/lib/keybinds/bindings"
+import { getEffectiveBindings } from "@/lib/store/keybindStore"
 
 function formatKey(key: string): string {
   return key
@@ -58,8 +59,9 @@ export function CommandPalette() {
 
   if (!open) return null
 
+  const effective = getEffectiveBindings()
   const lowerFilter = filter.toLowerCase()
-  const filtered = bindings.filter(
+  const filtered = effective.filter(
     (b) =>
       b.description.toLowerCase().includes(lowerFilter) ||
       b.key.toLowerCase().includes(lowerFilter)
