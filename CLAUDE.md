@@ -641,3 +641,15 @@ Free tier is sufficient for personal use. Gmail API quotas (1B units/day) will n
 - `useKeybinds` re-registers tinykeys whenever overrides change (dep: `JSON.stringify(overrides)`)
 - Multi-key sequences (`g i`, `g g`) and special keys (`Enter`, `Escape`) are shown in settings but locked (not editable) — `isEditable()` returns false for `key.length !== 1`
 - `labelPicker` action retains dual behavior: opens picker in LIST pane, scrolls right in DETAIL pane
+
+### 2026-03-27 — EmailRow Subject Ellipsis Fix
+
+**What was done:**
+- Fixed EmailRow layout bug where long subject lines didn't ellipsis before the date, pushing it off-screen
+- Changed subject span from `shrink-0` to `truncate` in `components/mail/EmailRow.tsx` — allows subject to shrink and ellipsis when row is crowded
+- Date now always visible; subject and snippet both properly truncate with ellipsis when needed
+
+**Notes:**
+- Root cause: `shrink-0` prevented the subject from shrinking, forcing it to take full width and pushing date off-screen
+- `truncate` class adds `text-overflow: ellipsis` + `overflow: hidden`, matching snippet behavior
+- The `min-w-0` on flex container allows proper shrink participation
