@@ -79,13 +79,13 @@ export function EmailRow({ thread, isCursor, isSelected, style, onClick }: Email
       {/* Subject + snippet */}
       <div className="flex min-w-0 flex-1 items-baseline gap-2">
         <span
-          className={`truncate text-sm ${
+          className={`shrink-0 max-w-full truncate text-sm ${
             isUnread ? "font-semibold text-white" : "text-neutral-300"
           }`}
         >
           {subject || "(no subject)"}
         </span>
-        <span className="min-w-0 truncate text-sm text-neutral-600">
+        <span className="min-w-0 flex-1 truncate text-sm text-neutral-600">
           {snippet}
         </span>
       </div>

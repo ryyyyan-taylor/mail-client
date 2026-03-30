@@ -439,6 +439,40 @@ Free tier is sufficient for personal use. Gmail API quotas (1B units/day) will n
 
 ---
 
+## Context Management (Automatic Updates)
+
+**On every interaction, Claude should:**
+
+1. **Read context files at session start:**
+   - `~/.claude/projects/-home-rt-Code-mail-client/memory/MEMORY.md` — check for relevant project knowledge, user preferences, feedback
+   - `~/.claude/projects/-home-rt-Code-mail-client/memory/*.md` — read full details of any referenced memories
+   - Current CLAUDE.md "Session Notes" section — understand recent work and decisions
+
+2. **Update CLAUDE.md "Session Notes" on task completion:**
+   - Add a new subsection with today's date: `### YYYY-MM-DD — [Brief Title]`
+   - Include **What was done**, **Notes**, and **Next up** subsections
+   - Reference files by path and line number (e.g. `components/mail/EmailRow.tsx:42`)
+   - Keep notes concise but detailed enough for future reference
+
+3. **Write to memory files when learning new information:**
+   - **User preferences** (e.g., "prefers terse responses") → `memory/user_*.md`
+   - **Feedback on approach** (e.g., "don't mock databases") → `memory/feedback_*.md`
+   - **Project context** (e.g., deadline, stakeholder requirement) → `memory/project_*.md`
+   - **External resources** (e.g., "bugs tracked in Linear project X") → `memory/reference_*.md`
+   - Use the frontmatter format in memory files (see `memory/MEMORY.md`)
+   - Keep `memory/MEMORY.md` index updated with links
+
+4. **Update CLAUDE.md when:**
+   - Architecture or file structure changes significantly
+   - New phase completes (add to "Phased Build Order" checklist)
+   - Stack changes (e.g., new dependency, removed library)
+   - Out-of-scope decisions change
+   - Deployment or environment setup changes
+
+**Rationale:** This ensures continuity across conversations, prevents repeating work, and keeps the codebase self-documenting.
+
+---
+
 ## Session Notes
 
 ### 2026-03-22 — Phase 1 Complete

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useCallback, type RefObject } from "react"
+import { useRef, useEffect, useCallback, useMemo, type RefObject } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useMessages, type ThreadListItem } from "@/hooks/useMessages"
 import { useMailStore } from "@/lib/store/mailStore"
@@ -28,8 +28,12 @@ export function EmailList({ label, q, detailScrollRef }: EmailListProps) {
     error,
   } = useMessages(label, q)
 
-  const threads: ThreadListItem[] =
-    data?.pages.flatMap((p) => p.threads) ?? []
+  const threads: ThreadListItem[] = useMemo(() => {
+    const flat = data?.pages.flatMap((p) => p.threads) ?? []
+    const starred = flat.filter((t) => t.message.labelIds?.includes("STARRED"))
+    const rest = flat.filter((t) => !t.message.labelIds?.includes("STARRED"))
+    return [...starred, ...rest]
+  }, [data])
 
   const actions = useBulkActions()
   const cursorIndex = useMailStore((s) => s.cursorIndex)
