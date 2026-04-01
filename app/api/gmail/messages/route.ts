@@ -1,6 +1,7 @@
 import { auth } from "@/auth"
 import { getGmailClient } from "@/lib/gmail/client"
 import { listMessages, getMessage } from "@/lib/gmail/messages"
+import { gmailErrorResponse } from "@/lib/gmail/errors"
 import { NextRequest } from "next/server"
 
 export async function GET(req: NextRequest) {
@@ -16,20 +17,24 @@ export async function GET(req: NextRequest) {
   const q = params.get("q") ?? undefined
   const pageToken = params.get("pageToken") ?? undefined
 
-  const listData = await listMessages(gmail, { labelIds, q, pageToken })
+  try {
+    const listData = await listMessages(gmail, { labelIds, q, pageToken })
 
-  if (!listData.messages?.length) {
-    return Response.json({ messages: [], nextPageToken: null })
+    if (!listData.messages?.length) {
+      return Response.json({ messages: [], nextPageToken: null })
+    }
+
+    // Fetch full message data for each message in the list
+    const messages = await Promise.all(
+      listData.messages.map((m) => getMessage(gmail, m.id!))
+    )
+
+    return Response.json({
+      messages,
+      nextPageToken: listData.nextPageToken ?? null,
+      resultSizeEstimate: listData.resultSizeEstimate,
+    })
+  } catch (error) {
+    return gmailErrorResponse(error)
   }
-
-  // Fetch full message data for each message in the list
-  const messages = await Promise.all(
-    listData.messages.map((m) => getMessage(gmail, m.id!))
-  )
-
-  return Response.json({
-    messages,
-    nextPageToken: listData.nextPageToken ?? null,
-    resultSizeEstimate: listData.resultSizeEstimate,
-  })
 }

@@ -1,6 +1,7 @@
 import { auth } from "@/auth"
 import { getGmailClient } from "@/lib/gmail/client"
 import { listLabels } from "@/lib/gmail/labels"
+import { gmailErrorResponse } from "@/lib/gmail/errors"
 
 export async function GET() {
   const session = await auth()
@@ -9,7 +10,10 @@ export async function GET() {
   }
 
   const gmail = getGmailClient(session.accessToken)
-  const labels = await listLabels(gmail)
-
-  return Response.json({ labels })
+  try {
+    const labels = await listLabels(gmail)
+    return Response.json({ labels })
+  } catch (error) {
+    return gmailErrorResponse(error)
+  }
 }

@@ -32,12 +32,13 @@ In NORMAL mode, actions apply to the thread under the cursor. In VISUAL mode, th
 |-----|--------|
 | `e` | Archive |
 | `d` | Trash |
-| `!` | Mark as spam |
+| `x` | Mark as spam |
 | `s` | Toggle star |
-| `u` | Toggle read/unread |
+| `y` | Toggle read/unread |
+| `u` | Undo last action |
 | `m` | Mute thread |
 | `l` | Open label picker |
-| `?` | Open command palette |
+| `p` | Open command palette |
 
 ### `g` Prefix Navigation
 
@@ -50,8 +51,8 @@ Quick-jump to any folder with a two-key sequence:
 | `g t` | Sent |
 | `g d` | Drafts |
 | `g e` | All Mail |
-| `g !` | Spam |
-| `g #` | Trash |
+| `g x` | Spam |
+| `g r` | Trash |
 
 ### Visual Mode Bulk Actions
 
@@ -71,7 +72,11 @@ The gear icon opens a settings panel where any single-character keybind can be r
 
 ### Command Palette
 
-`?` opens a searchable palette listing every keybind, grouped by category and filterable by key or description.
+`p` opens a searchable palette listing every keybind, grouped by category and filterable by key or description.
+
+### First-time Tour
+
+On first login, a 6-step interactive tour walks through the core keybinds — navigation, folder jumps, actions, visual mode, and search. Keyboard-navigable with arrow keys. Skippable at any time and never shown again once dismissed.
 
 ### Other Details
 
