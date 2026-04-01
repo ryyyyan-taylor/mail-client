@@ -676,6 +676,18 @@ Free tier is sufficient for personal use. Gmail API quotas (1B units/day) will n
 - Multi-key sequences (`g i`, `g g`) and special keys (`Enter`, `Escape`) are shown in settings but locked (not editable) — `isEditable()` returns false for `key.length !== 1`
 - `labelPicker` action retains dual behavior: opens picker in LIST pane, scrolls right in DETAIL pane
 
+### 2026-04-01 — API Error Handling + Keyboard Tour
+
+**What was done:**
+- `lib/gmail/errors.ts` (new): `gmailErrorResponse(error)` — parses googleapis error shape (`code`, `errors[0].message`), logs server-side, returns proper HTTP responses for 401/403/404/429/500 with human-readable messages
+- All 5 Gmail API routes (`threads`, `threads/[id]`, `messages`, `messages/[id]`, `labels`) now wrap Gmail calls in try/catch using `gmailErrorResponse`
+- `components/ui/KeybindTour.tsx` (new): 6-step stepped tour modal (Welcome → Navigate → Folders → Actions → Visual mode → Search & help). Shows on first visit via `localStorage` key `vimmail-tour-seen`. Keyboard navigable (← → arrows, Escape to skip). Progress bar + dot indicators.
+- `components/layout/AppShell.tsx`: Added `<KeybindTour />` mount
+
+**Notes:**
+- Root cause of 500s: Google revokes refresh tokens after 7 days for OAuth apps in Testing mode. Sign out/in gets fresh tokens. Workaround: re-add yourself as a test user in Google Cloud Console to reset the 7-day clock.
+- Tour uses capture-phase keydown listener while open (blocks tinykeys from firing during tour navigation)
+
 ### 2026-03-27 — EmailRow Subject Ellipsis Fix
 
 **What was done:**

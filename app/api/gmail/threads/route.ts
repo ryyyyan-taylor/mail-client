@@ -2,6 +2,7 @@ import { auth } from "@/auth"
 import { getGmailClient } from "@/lib/gmail/client"
 import { listThreads } from "@/lib/gmail/threads"
 import { getMessage } from "@/lib/gmail/messages"
+import { gmailErrorResponse } from "@/lib/gmail/errors"
 import { NextRequest } from "next/server"
 
 export async function GET(req: NextRequest) {
@@ -17,28 +18,32 @@ export async function GET(req: NextRequest) {
   const q = params.get("q") ?? undefined
   const pageToken = params.get("pageToken") ?? undefined
 
-  const listData = await listThreads(gmail, { labelIds, q, pageToken })
+  try {
+    const listData = await listThreads(gmail, { labelIds, q, pageToken })
 
-  if (!listData.threads?.length) {
-    return Response.json({ threads: [], nextPageToken: null })
-  }
+    if (!listData.threads?.length) {
+      return Response.json({ threads: [], nextPageToken: null })
+    }
 
-  // Fetch the first message of each thread for preview data
-  const threads = await Promise.all(
-    listData.threads.map(async (t) => {
-      const msg = await getMessage(gmail, t.id!)
-      return {
-        id: t.id,
-        snippet: t.snippet,
-        historyId: t.historyId,
-        message: msg,
-      }
+    // Fetch the first message of each thread for preview data
+    const threads = await Promise.all(
+      listData.threads.map(async (t) => {
+        const msg = await getMessage(gmail, t.id!)
+        return {
+          id: t.id,
+          snippet: t.snippet,
+          historyId: t.historyId,
+          message: msg,
+        }
+      })
+    )
+
+    return Response.json({
+      threads,
+      nextPageToken: listData.nextPageToken ?? null,
+      resultSizeEstimate: listData.resultSizeEstimate,
     })
-  )
-
-  return Response.json({
-    threads,
-    nextPageToken: listData.nextPageToken ?? null,
-    resultSizeEstimate: listData.resultSizeEstimate,
-  })
+  } catch (error) {
+    return gmailErrorResponse(error)
+  }
 }

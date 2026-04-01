@@ -2,6 +2,7 @@
 
 import { Sidebar } from "./Sidebar"
 import { Topbar } from "./Topbar"
+import { KeybindTour } from "@/components/ui/KeybindTour"
 import type { User } from "next-auth"
 
 export function AppShell({
@@ -18,6 +19,7 @@ export function AppShell({
         <Topbar user={user} />
         <main className="flex-1 overflow-hidden">{children}</main>
       </div>
+      <KeybindTour />
     </div>
   )
 }
