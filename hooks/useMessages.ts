@@ -2,6 +2,8 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query"
 import { queryKeys } from "@/lib/queryKeys"
+import { useSettingsStore } from "@/lib/store/settingsStore"
+import { getDemoThreads } from "@/lib/demo/data"
 
 export interface GmailHeader {
   name: string
@@ -64,9 +66,14 @@ export function getMessageFields(msg: GmailMessage) {
 }
 
 export function useMessages(label: string, q?: string) {
+  const demoMode = useSettingsStore((s) => s.demoMode)
+
   return useInfiniteQuery<ThreadsResponse>({
-    queryKey: queryKeys.messages(label, q),
+    queryKey: [...queryKeys.messages(label, q), { demoMode }],
     queryFn: async ({ pageParam }) => {
+      if (useSettingsStore.getState().demoMode) {
+        return getDemoThreads(label, q)
+      }
       const params = new URLSearchParams()
       params.set("labelIds", label)
       if (q) params.set("q", q)

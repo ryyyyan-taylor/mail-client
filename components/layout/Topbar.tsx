@@ -4,6 +4,7 @@ import { useRef } from "react"
 import { signOut } from "next-auth/react"
 import { useRouter, useParams } from "next/navigation"
 import { useUIStore } from "@/lib/store/uiStore"
+import { useSettingsStore } from "@/lib/store/settingsStore"
 import type { User } from "next-auth"
 
 export function Topbar({ user }: { user?: User }) {
@@ -11,6 +12,7 @@ export function Topbar({ user }: { user?: User }) {
   const router = useRouter()
   const params = useParams<{ label: string }>()
   const searchQuery = useUIStore((s) => s.searchQuery)
+  const demoMode = useSettingsStore((s) => s.demoMode)
 
   function handleFocus() {
     useUIStore.getState().setMode("INSERT")
@@ -63,6 +65,11 @@ export function Topbar({ user }: { user?: User }) {
         />
       </div>
       <div className="flex items-center gap-3">
+        {demoMode && (
+          <span className="rounded bg-blue-600/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400 border border-blue-600/30">
+            Demo
+          </span>
+        )}
         <button
           onClick={() => useUIStore.getState().setSettingsOpen(true)}
           className="text-neutral-500 hover:text-neutral-300 transition-colors"
