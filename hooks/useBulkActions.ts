@@ -7,6 +7,7 @@ import { queryKeys } from "@/lib/queryKeys"
 import { useMailStore } from "@/lib/store/mailStore"
 import { useToastStore } from "@/lib/store/toastStore"
 import { useUndoStore } from "@/lib/store/undoStore"
+import { useSettingsStore } from "@/lib/store/settingsStore"
 import type { ThreadListItem } from "@/hooks/useMessages"
 
 interface ThreadsPage {
@@ -21,9 +22,10 @@ export function useBulkActions() {
   const queryClient = useQueryClient()
   const params = useParams<{ label: string }>()
   const label = decodeURIComponent(params.label)
+  const demoMode = useSettingsStore((s) => s.demoMode)
 
   function getQueryKey() {
-    return queryKeys.messages(label)
+    return [...queryKeys.messages(label), { demoMode }]
   }
 
   /** Remove threads from the current list cache optimistically */
@@ -129,6 +131,7 @@ export function useBulkActions() {
     ids: string[],
     body: { addLabelIds?: string[]; removeLabelIds?: string[] }
   ) {
+    if (useSettingsStore.getState().demoMode) return
     await Promise.all(
       ids.map((id) =>
         fetch(`/api/gmail/threads/${id}`, {
@@ -143,6 +146,7 @@ export function useBulkActions() {
   }
 
   async function trashThreads(ids: string[]) {
+    if (useSettingsStore.getState().demoMode) return
     await Promise.all(
       ids.map((id) =>
         fetch(`/api/gmail/threads/${id}`, { method: "DELETE" }).then((r) => {
@@ -171,7 +175,9 @@ export function useBulkActions() {
       rollback(prev)
       useToastStore.getState().addToast("Failed to archive", "error")
     }
-    queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    if (!useSettingsStore.getState().demoMode) {
+      queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    }
   }
 
   /** Trash: move to trash */
@@ -189,7 +195,9 @@ export function useBulkActions() {
       rollback(prev)
       useToastStore.getState().addToast("Failed to trash", "error")
     }
-    queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    if (!useSettingsStore.getState().demoMode) {
+      queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    }
   }
 
   /** Spam: add SPAM label, remove INBOX */
@@ -207,7 +215,9 @@ export function useBulkActions() {
       rollback(prev)
       useToastStore.getState().addToast("Failed to mark as spam", "error")
     }
-    queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    if (!useSettingsStore.getState().demoMode) {
+      queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    }
   }
 
   /** Toggle star on threads */
@@ -233,7 +243,9 @@ export function useBulkActions() {
       rollback(prev)
       useToastStore.getState().addToast("Failed to update star", "error")
     }
-    queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    if (!useSettingsStore.getState().demoMode) {
+      queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    }
   }
 
   /** Toggle read/unread on threads */
@@ -258,7 +270,9 @@ export function useBulkActions() {
       rollback(prev)
       useToastStore.getState().addToast("Failed to update read status", "error")
     }
-    queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    if (!useSettingsStore.getState().demoMode) {
+      queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    }
   }
 
   /** Undo the last action */
@@ -295,9 +309,11 @@ export function useBulkActions() {
       useToastStore.getState().addToast("Failed to undo", "error")
     }
     // Invalidate both the current view and the original action's view
-    queryClient.invalidateQueries({ queryKey: getQueryKey() })
-    if (entry.label !== label) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.messages(entry.label) })
+    if (!useSettingsStore.getState().demoMode) {
+      queryClient.invalidateQueries({ queryKey: getQueryKey() })
+      if (entry.label !== label) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.messages(entry.label) })
+      }
     }
   }
 
