@@ -1,9 +1,12 @@
 import type { ThreadListItem, GmailMessage } from "@/hooks/useMessages"
 import type { GmailLabel } from "@/hooks/useLabels"
 
-// base64url encode — demo data is ASCII-only
+// base64url encode — handles full Unicode via percent-encoding trick
 function b64(s: string): string {
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  const latin1 = encodeURIComponent(s).replace(/%([0-9A-F]{2})/g, (_, byte) =>
+    String.fromCharCode(parseInt(byte, 16))
+  )
+  return btoa(latin1).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 }
 
 function msg(
