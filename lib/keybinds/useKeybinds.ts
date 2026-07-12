@@ -127,6 +127,11 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
         useMailStore.getState().setActiveThread(id)
         useUIStore.getState().setFocusedPane("DETAIL")
       },
+      // Space bar is an alias for Enter — same handler, separate action name
+      // so the two keys don't share a single-slot keybind override.
+      openThreadSpace(e) {
+        actionHandlers.openThread(e)
+      },
       escape(e) {
         const { mode, focusedPane } = useUIStore.getState()
         e.preventDefault()
@@ -236,6 +241,7 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
         const ids = getActionIds()
         if (ids.length === 0) return
         e.preventDefault()
+        exitVisualAfterAction()
         actions.toggleStar(ids)
       },
       toggleUnread(e) {
@@ -338,20 +344,24 @@ export function useKeybinds({ threadCount, getThreadId, detailScrollRef, actions
     }
 
     // Build tinykeys handler map from effective bindings (defaults + overrides)
+    // tinykeys matches against KeyboardEvent.key, where the spacebar is " "
+    // — "Space" is just the display-friendly name used in bindings.ts.
+    const toEventKey = (key: string) => (key === "Space" ? " " : key)
     const effective = getEffectiveBindings()
     const handlers: Record<string, (e: KeyboardEvent) => void> = {}
     for (const b of effective) {
       const handler = actionHandlers[b.action]
       if (!handler) continue
-      if (handlers[b.key]) {
+      const eventKey = toEventKey(b.key)
+      if (handlers[eventKey]) {
         // Multiple actions on the same key — chain them (mode checks prevent double-fire)
-        const prev = handlers[b.key]
-        handlers[b.key] = (e: KeyboardEvent) => {
+        const prev = handlers[eventKey]
+        handlers[eventKey] = (e: KeyboardEvent) => {
           prev(e)
           handler(e)
         }
       } else {
-        handlers[b.key] = handler
+        handlers[eventKey] = handler
       }
     }
 

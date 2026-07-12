@@ -8,6 +8,7 @@ import { useMailStore } from "@/lib/store/mailStore"
 import { useToastStore } from "@/lib/store/toastStore"
 import { useUndoStore } from "@/lib/store/undoStore"
 import { useSettingsStore } from "@/lib/store/settingsStore"
+import { sortThreadsForDisplay } from "@/lib/mail/sortThreads"
 import type { ThreadListItem } from "@/hooks/useMessages"
 
 interface ThreadsPage {
@@ -82,18 +83,38 @@ export function useBulkActions() {
   }
 
   /**
-   * Find the flat index of a thread ID in the pre-removal list.
-   * Returns -1 if not found.
+   * Find the index of a thread ID in the pre-removal list, in the same
+   * starred-pinned-to-top order the list actually renders in. Returns -1 if
+   * not found.
    */
   function findThreadIndex(data: InfiniteData, threadId: string): number {
-    let idx = 0
-    for (const page of data.pages) {
-      for (const t of page.threads) {
-        if (t.id === threadId) return idx
-        idx++
+    const flat = data.pages.flatMap((page) => page.threads)
+    const sorted = sortThreadsForDisplay(flat)
+    return sorted.findIndex((t) => t.id === threadId)
+  }
+
+  /**
+   * Index where the topmost of `ids` sat in the old (display-order) list,
+   * clamped to the new list's bounds. Whether the block was removed or just
+   * reordered elsewhere (e.g. starred to the top), everything that came
+   * after it shifts up into this exact slot — so this is "the next mail in
+   * the list sequentially" in both cases.
+   */
+  function computeCursorTargetIndex(ids: string[], prevData: InfiniteData | undefined): number {
+    let targetIndex = 0
+    if (prevData) {
+      const firstIndex = ids.reduce((min, id) => {
+        const idx = findThreadIndex(prevData, id)
+        return idx >= 0 && idx < min ? idx : min
+      }, Infinity)
+      if (isFinite(firstIndex)) {
+        targetIndex = firstIndex
       }
     }
-    return -1
+
+    const data = queryClient.getQueryData<InfiniteData>(getQueryKey())
+    const totalThreads = data?.pages.reduce((sum, p) => sum + p.threads.length, 0) ?? 0
+    return totalThreads === 0 ? 0 : Math.min(targetIndex, totalThreads - 1)
   }
 
   /**
@@ -102,29 +123,19 @@ export function useBulkActions() {
    * deleted block. Clamps to list bounds.
    */
   function adjustCursorAfterRemoval(ids: string[], prevData: InfiniteData | undefined) {
-    const { setCursor, setActiveThread } = useMailStore.getState()
-    setActiveThread(null)
+    useMailStore.getState().setActiveThread(null)
+    useMailStore.getState().setCursor(computeCursorTargetIndex(ids, prevData))
+  }
 
-    // Find where the first removed thread was in the old list
-    let targetIndex = 0
-    if (prevData) {
-      const firstRemovedIndex = ids.reduce((min, id) => {
-        const idx = findThreadIndex(prevData, id)
-        return idx >= 0 && idx < min ? idx : min
-      }, Infinity)
-      if (isFinite(firstRemovedIndex)) {
-        targetIndex = firstRemovedIndex
-      }
-    }
-
-    // Clamp to new list bounds
-    const data = queryClient.getQueryData<InfiniteData>(getQueryKey())
-    const totalThreads = data?.pages.reduce((sum, p) => sum + p.threads.length, 0) ?? 0
-    if (totalThreads === 0) {
-      setCursor(0)
-    } else {
-      setCursor(Math.min(targetIndex, totalThreads - 1))
-    }
+  /**
+   * After a label change reorders the list without removing anything (e.g.
+   * starring moves a thread to the top), keep the cursor visually in place
+   * — pointing at whatever now occupies the slot the moved block vacated.
+   * Unlike removal, the moved thread still exists, so the active thread (if
+   * any) is left open rather than cleared.
+   */
+  function adjustCursorAfterMove(ids: string[], prevData: InfiniteData | undefined) {
+    useMailStore.getState().setCursor(computeCursorTargetIndex(ids, prevData))
   }
 
   async function modifyThreads(
@@ -160,9 +171,26 @@ export function useBulkActions() {
     useUndoStore.getState().push({ ...entry, label })
   }
 
+  /**
+   * Snapshot cursor/active-thread before an optimistic update so a failed
+   * request can put the user back exactly where they were, not just the
+   * list contents.
+   */
+  function snapshotCursorState() {
+    const { cursorIndex, activeThreadId } = useMailStore.getState()
+    return { cursorIndex, activeThreadId }
+  }
+
+  function restoreCursorState(snapshot: { cursorIndex: number; activeThreadId: string | null }) {
+    const { setCursor, setActiveThread } = useMailStore.getState()
+    setCursor(snapshot.cursorIndex)
+    setActiveThread(snapshot.activeThreadId)
+  }
+
   /** Archive: remove INBOX label (removes from inbox, thread still exists) */
   async function archive(ids: string[]) {
     const threadIds = new Set(ids)
+    const cursorSnapshot = snapshotCursorState()
     const prev = removeThreadsFromCache(threadIds)
     adjustCursorAfterRemoval(ids, prev)
 
@@ -173,6 +201,7 @@ export function useBulkActions() {
       useToastStore.getState().addToast(desc)
     } catch {
       rollback(prev)
+      restoreCursorState(cursorSnapshot)
       useToastStore.getState().addToast("Failed to archive", "error")
     }
     if (!useSettingsStore.getState().demoMode) {
@@ -183,6 +212,7 @@ export function useBulkActions() {
   /** Trash: move to trash */
   async function trash(ids: string[]) {
     const threadIds = new Set(ids)
+    const cursorSnapshot = snapshotCursorState()
     const prev = removeThreadsFromCache(threadIds)
     adjustCursorAfterRemoval(ids, prev)
 
@@ -193,6 +223,7 @@ export function useBulkActions() {
       useToastStore.getState().addToast(desc)
     } catch {
       rollback(prev)
+      restoreCursorState(cursorSnapshot)
       useToastStore.getState().addToast("Failed to trash", "error")
     }
     if (!useSettingsStore.getState().demoMode) {
@@ -203,6 +234,7 @@ export function useBulkActions() {
   /** Spam: add SPAM label, remove INBOX */
   async function spam(ids: string[]) {
     const threadIds = new Set(ids)
+    const cursorSnapshot = snapshotCursorState()
     const prev = removeThreadsFromCache(threadIds)
     adjustCursorAfterRemoval(ids, prev)
 
@@ -213,6 +245,7 @@ export function useBulkActions() {
       useToastStore.getState().addToast(desc)
     } catch {
       rollback(prev)
+      restoreCursorState(cursorSnapshot)
       useToastStore.getState().addToast("Failed to mark as spam", "error")
     }
     if (!useSettingsStore.getState().demoMode) {
@@ -232,7 +265,9 @@ export function useBulkActions() {
     const removeLabelIds = isCurrentlyStarred ? ["STARRED"] : []
 
     const threadIds = new Set(ids)
+    const cursorSnapshot = snapshotCursorState()
     const prev = updateThreadLabelsInCache(threadIds, addLabelIds, removeLabelIds)
+    adjustCursorAfterMove(ids, prev)
 
     try {
       await modifyThreads(ids, { addLabelIds, removeLabelIds })
@@ -241,6 +276,7 @@ export function useBulkActions() {
       useToastStore.getState().addToast(desc)
     } catch {
       rollback(prev)
+      restoreCursorState(cursorSnapshot)
       useToastStore.getState().addToast("Failed to update star", "error")
     }
     if (!useSettingsStore.getState().demoMode) {

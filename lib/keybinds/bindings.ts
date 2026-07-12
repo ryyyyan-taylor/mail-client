@@ -20,6 +20,7 @@ export const bindings: KeyBinding[] = [
   { key: "g g", description: "Jump to top", mode: "NORMAL", action: "jumpTop", category: "navigation" },
   { key: "G", description: "Jump to bottom", mode: "NORMAL", action: "jumpBottom", category: "navigation" },
   { key: "Enter", description: "Open thread", mode: "NORMAL", action: "openThread", category: "navigation" },
+  { key: "Space", description: "Open thread", mode: "NORMAL", action: "openThreadSpace", category: "navigation" },
   { key: "Escape", description: "Back / exit", mode: "ALL", action: "escape", category: "navigation" },
   { key: "[", description: "Previous thread", mode: "NORMAL", action: "prevThread", category: "navigation" },
   { key: "]", description: "Next thread", mode: "NORMAL", action: "nextThread", category: "navigation" },

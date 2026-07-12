@@ -8,6 +8,7 @@ import { useUIStore } from "@/lib/store/uiStore"
 import { useKeybinds } from "@/lib/keybinds/useKeybinds"
 import { useVirtualCursor } from "@/hooks/useVirtualCursor"
 import { useBulkActions } from "@/hooks/useBulkActions"
+import { sortThreadsForDisplay } from "@/lib/mail/sortThreads"
 import { EmailRow } from "./EmailRow"
 import { SelectionBar } from "./SelectionBar"
 
@@ -30,9 +31,7 @@ export function EmailList({ label, q, detailScrollRef }: EmailListProps) {
 
   const threads: ThreadListItem[] = useMemo(() => {
     const flat = data?.pages.flatMap((p) => p.threads) ?? []
-    const starred = flat.filter((t) => t.message.labelIds?.includes("STARRED"))
-    const rest = flat.filter((t) => !t.message.labelIds?.includes("STARRED"))
-    return [...starred, ...rest]
+    return sortThreadsForDisplay(flat)
   }, [data])
 
   const actions = useBulkActions()
@@ -49,7 +48,7 @@ export function EmailList({ label, q, detailScrollRef }: EmailListProps) {
   })
 
   // Keep cursor scrolled into view
-  useVirtualCursor(rowVirtualizer)
+  useVirtualCursor(rowVirtualizer, threads.length)
 
   // Register keyboard shortcuts
   const getThreadId = useCallback(
