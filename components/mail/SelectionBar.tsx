@@ -61,6 +61,15 @@ export function SelectionBar() {
       >
         Read/Unread <kbd className="ml-1 text-neutral-500">y</kbd>
       </button>
+      <button
+        onClick={() => {
+          useUIStore.getState().setLabelPickerTargetIds(ids)
+          useUIStore.getState().setLabelPickerOpen(true)
+        }}
+        className="rounded px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700"
+      >
+        Label <kbd className="ml-1 text-neutral-500">l</kbd>
+      </button>
     </div>
   )
 }

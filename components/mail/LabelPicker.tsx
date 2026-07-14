@@ -4,10 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { useUIStore } from "@/lib/store/uiStore"
 import { useMailStore } from "@/lib/store/mailStore"
 import { useLabels } from "@/hooks/useLabels"
-import { useToastStore } from "@/lib/store/toastStore"
-import { useQueryClient } from "@tanstack/react-query"
-import { queryKeys } from "@/lib/queryKeys"
-import { useParams } from "next/navigation"
+import { useBulkActions } from "@/hooks/useBulkActions"
 
 const HIDDEN_IDS = new Set([
   "INBOX", "STARRED", "SENT", "DRAFT", "SPAM", "TRASH",
@@ -20,9 +17,9 @@ export function LabelPicker() {
   const open = useUIStore((s) => s.labelPickerOpen)
   const targetIds = useUIStore((s) => s.labelPickerTargetIds)
   const { data } = useLabels()
-  const queryClient = useQueryClient()
-  const params = useParams<{ label: string }>()
-  const label = decodeURIComponent(params.label)
+  const bulkActions = useBulkActions()
+  const bulkActionsRef = useRef(bulkActions)
+  bulkActionsRef.current = bulkActions
 
   const [filter, setFilter] = useState("")
   const [cursor, setCursor] = useState(0)
@@ -47,8 +44,6 @@ export function LabelPicker() {
 
   const targetIdsRef = useRef(targetIds)
   targetIdsRef.current = targetIds
-  const labelRef = useRef(label)
-  labelRef.current = label
 
   useEffect(() => {
     if (open) {
@@ -79,33 +74,13 @@ export function LabelPicker() {
     }
   }, [])
 
-  const applyLabel = useCallback(async (labelId: string, labelName: string) => {
+  const applyLabel = useCallback((labelId: string, labelName: string) => {
     const ids = targetIdsRef.current
-    const currentLabel = labelRef.current
     close()
-    try {
-      await Promise.all(
-        ids.map((id) =>
-          fetch(`/api/gmail/threads/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              addLabelIds: [labelId],
-              removeLabelIds: ["INBOX"],
-            }),
-          }).then((r) => {
-            if (!r.ok) throw new Error("Failed")
-          })
-        )
-      )
-      useToastStore.getState().addToast(
-        `Labeled "${labelName}" — ${ids.length} thread${ids.length > 1 ? "s" : ""}`
-      )
-    } catch {
-      useToastStore.getState().addToast("Failed to apply label", "error")
-    }
-    queryClient.invalidateQueries({ queryKey: queryKeys.messages(currentLabel) })
-  }, [close, queryClient])
+    // Fire-and-forget: applyLabel updates the cache optimistically and
+    // handles its own rollback/toast, so the picker doesn't wait on it.
+    bulkActionsRef.current.applyLabel(ids, labelId, labelName)
+  }, [close])
 
   // Single capture-phase listener handles ALL keyboard interaction and blocks tinykeys
   useEffect(() => {

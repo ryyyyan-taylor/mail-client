@@ -253,6 +253,28 @@ export function useBulkActions() {
     }
   }
 
+  /** Move to label: add the label, remove from Inbox */
+  async function applyLabel(ids: string[], labelId: string, labelName: string) {
+    const threadIds = new Set(ids)
+    const cursorSnapshot = snapshotCursorState()
+    const prev = removeThreadsFromCache(threadIds)
+    adjustCursorAfterRemoval(ids, prev)
+
+    try {
+      await modifyThreads(ids, { addLabelIds: [labelId], removeLabelIds: ["INBOX"] })
+      const desc = `Labeled "${labelName}" — ${ids.length} thread${ids.length > 1 ? "s" : ""}`
+      pushUndo({ description: desc, threadIds: ids, addLabelIds: [labelId], removeLabelIds: ["INBOX"], trashed: false })
+      useToastStore.getState().addToast(desc)
+    } catch {
+      rollback(prev)
+      restoreCursorState(cursorSnapshot)
+      useToastStore.getState().addToast("Failed to apply label", "error")
+    }
+    if (!useSettingsStore.getState().demoMode) {
+      queryClient.invalidateQueries({ queryKey: getQueryKey() })
+    }
+  }
+
   /** Toggle star on threads */
   async function toggleStar(ids: string[]) {
     // Check if first thread is starred to decide toggle direction
@@ -354,5 +376,5 @@ export function useBulkActions() {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => ({ archive, trash, spam, toggleStar, toggleUnread, undo }), [label])
+  return useMemo(() => ({ archive, trash, spam, toggleStar, toggleUnread, applyLabel, undo }), [label])
 }
